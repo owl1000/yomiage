@@ -1,0 +1,1176 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>読み上げ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="読み上げ">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ECEFED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1B2023" media="(prefers-color-scheme: dark)">
+<style>
+:root{
+  --bg:#ECEFED; --surface:#F6F7F5; --ink:#2B3330; --sub:#68736E; --line:#D3D9D6;
+  --accent:#45677A; --on-accent:#F6F7F5; --hl:#D5E3E8; --mark:#45677A; --danger:#8A4B4B;
+  --fs:18px;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1B2023; --surface:#232A2D; --ink:#CFD6D4; --sub:#8B9592; --line:#353D40;
+    --accent:#8EAFBE; --on-accent:#1B2023; --hl:#2C3D44; --mark:#8EAFBE; --danger:#D09A9A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1B2023; --surface:#232A2D; --ink:#CFD6D4; --sub:#8B9592; --line:#353D40;
+  --accent:#8EAFBE; --on-accent:#1B2023; --hl:#2C3D44; --mark:#8EAFBE; --danger:#D09A9A;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+body{
+  margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  font-size:16px;line-height:1.6;-webkit-tap-highlight-color:transparent;
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* 共通部品 */
+.bar{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:5;
+  display:flex;align-items:center;gap:8px;
+  padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--line);
+}
+.btn{
+  border:1px solid var(--line);background:var(--surface);border-radius:10px;
+  padding:8px 14px;min-height:40px;font-size:15px;
+}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.danger{color:var(--danger)}
+.icon-btn{
+  width:42px;height:42px;border:none;background:transparent;border-radius:10px;
+  display:grid;place-items:center;flex:none;
+}
+.icon-btn svg{width:22px;height:22px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:none;background:var(--surface);padding:7px 14px;font-size:14px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+select,input[type="text"],input[type="search"]{
+  border:1px solid var(--line);background:var(--surface);border-radius:10px;
+  padding:8px 10px;font-size:16px;min-height:40px;
+}
+
+/* 本棚 */
+.shelf-bar h1{font-size:22px;font-weight:600;margin:0;flex:1;letter-spacing:.02em}
+.shelf-wrap{max-width:720px;margin:0 auto;padding:0 16px 40px}
+.shelf-tools{display:flex;flex-direction:column;gap:10px;padding:14px 0 6px}
+.shelf-tools input{width:100%}
+.sort-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--sub)}
+.sort-row select{font-size:15px;color:var(--ink)}
+#books{list-style:none;margin:0;padding:0}
+#books li{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.book{flex:1;min-width:0;text-align:left;border:none;background:transparent;padding:14px 4px}
+.b-title{display:block;font-size:17px;font-weight:600;line-height:1.45}
+.b-author{display:block;font-size:13px;color:var(--sub);margin-top:2px}
+.b-meta{display:flex;gap:14px;font-size:13px;color:var(--sub);margin-top:4px;font-variant-numeric:tabular-nums}
+.b-meta .done{color:var(--accent)}
+.empty{padding:32px 4px;color:var(--sub);font-size:15px;line-height:1.8}
+.empty strong{color:var(--ink);font-weight:600}
+
+/* リーダー */
+.reader-bar .r-titles{flex:1;min-width:0}
+.r-book{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r-chapter{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#text{
+  max-width:36em;margin:0 auto;padding:20px 22px 220px;
+  font-size:var(--fs);line-height:1.95;overflow-wrap:anywhere;
+}
+#text p{margin:0 0 .8em -14px;padding-left:12px;border-left:2px solid transparent}
+#text p.here{border-left-color:var(--mark)}
+#text .ch-title{font-size:1.25em;font-weight:600;line-height:1.55;margin:.4em 0 1.2em}
+#text h3{font-size:1.06em;font-weight:600;margin:1.5em 0 .6em}
+.s{border-radius:4px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.s.cur{background:var(--hl);box-shadow:0 0 0 2px var(--hl)}
+rt{font-size:.5em;color:var(--sub)}
+.ch-end{display:flex;gap:10px;justify-content:center;align-items:center;margin:2.4em 0 1em;font-size:16px}
+.ch-end .fin{margin:0;color:var(--sub);font-size:14px}
+
+/* 再生バー */
+.player{
+  position:fixed;left:0;right:0;bottom:0;z-index:6;
+  background:var(--surface);border-top:1px solid var(--line);
+  padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));
+}
+.p-inner{max-width:560px;margin:0 auto}
+.p-status{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;padding:0 4px}
+.p-ctrl{display:flex;justify-content:space-between;align-items:center;margin:4px 0 6px}
+.ctl{
+  border:none;background:transparent;display:flex;flex-direction:column;align-items:center;
+  gap:1px;font-size:11px;color:var(--sub);width:62px;padding:4px 0;border-radius:10px;
+}
+.ctl svg{width:26px;height:26px;color:var(--ink)}
+.play{
+  width:62px;height:62px;border-radius:50%;border:none;flex:none;
+  background:var(--accent);color:var(--on-accent);display:grid;place-items:center;
+}
+.play svg{width:28px;height:28px}
+.p-opts{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.p-opts label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);white-space:nowrap;min-width:0}
+.p-opts select{font-size:14px;min-height:34px;padding:4px 6px;color:var(--ink);max-width:7.5em}
+.p-opts .btn{min-height:34px;padding:4px 10px;font-size:13px;white-space:nowrap;flex:none}
+
+/* ダイアログ */
+dialog{
+  border:none;border-radius:16px;padding:0;background:var(--surface);color:var(--ink);
+  width:min(92vw,480px);max-height:84vh;
+}
+dialog[open]{display:flex;flex-direction:column}
+dialog::backdrop{background:rgba(18,24,26,.38)}
+.d-head{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:12px 12px 12px 18px;border-bottom:1px solid var(--line);
+}
+.d-head h2{font-size:17px;font-weight:600;margin:0}
+.d-body{padding:14px 18px 22px;overflow:auto}
+.field{margin:0 0 18px}
+.field>.label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+.field .note{font-size:13px;color:var(--sub);margin:6px 0 0;line-height:1.7}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row select{flex:1;min-width:0}
+.stepper{display:flex;align-items:center;gap:12px}
+.stepper output{min-width:3em;text-align:center;font-variant-numeric:tabular-nums}
+.check{display:flex;gap:10px;align-items:center;font-size:15px}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.dict-list{list-style:none;margin:0 0 10px;padding:0}
+.dict-list li{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:15px}
+.dict-list .from{flex:1;min-width:0}
+.dict-list .to{color:var(--sub)}
+.dict-list button{border:none;background:transparent;font-size:13px;padding:6px 8px;color:var(--sub)}
+.dict-add{display:grid;grid-template-columns:1fr 1fr auto;gap:8px}
+.dict-add input{min-width:0}
+.toc{list-style:none;margin:0;padding:0}
+.toc button{
+  width:100%;display:flex;justify-content:space-between;gap:10px;text-align:left;
+  border:none;background:transparent;padding:12px 4px;border-bottom:1px solid var(--line);font-size:15px;
+}
+.toc .now{font-weight:600}
+.toc .state{flex:none;font-size:12px;color:var(--sub)}
+.toc .now .state{color:var(--accent)}
+.d-actions{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+
+/* パスコード */
+#lock{width:100%;height:100%;max-width:none;max-height:none;border-radius:0;background:var(--bg);color:var(--ink)}
+#lock[open]{display:flex;align-items:center;justify-content:center}
+#lock::backdrop{background:var(--bg)}
+.lk{display:flex;flex-direction:column;align-items:center;padding:24px;text-align:center}
+.lk h2{font-size:20px;font-weight:600;margin:0 0 4px}
+.lk-sub{font-size:14px;color:var(--sub);margin:0 0 18px;min-height:1.6em}
+.dots{display:flex;gap:18px}
+.dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--ink)}
+.dots i.on{background:var(--ink)}
+.lk-msg{font-size:14px;color:var(--danger);margin:12px 0 0;min-height:1.6em}
+.keys{display:grid;grid-template-columns:repeat(3,72px);gap:14px 22px;margin:10px 0 18px}
+.keys button{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-size:26px;font-variant-numeric:tabular-nums}
+.keys button:disabled{opacity:.4}
+.keys .del{border:none;background:transparent;font-size:15px;color:var(--sub)}
+.lk-link{border:none;background:transparent;color:var(--accent);font-size:14px;padding:10px}
+#cover{position:fixed;inset:0;background:var(--bg);z-index:40}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(190px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;
+  z-index:20;max-width:88vw;text-align:center;
+}
+.shelf-view .toast{bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+</style>
+</head>
+<body class="shelf-view">
+
+<!-- 本棚 -->
+<div id="shelf">
+  <header class="bar shelf-bar">
+    <h1>本棚</h1>
+    <button class="btn primary" id="add">本を追加</button>
+    <button class="icon-btn" id="open-settings" aria-label="設定">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
+  </header>
+  <div class="shelf-wrap">
+    <div class="shelf-tools">
+      <input id="q" type="search" placeholder="タイトル・著者で探す" autocomplete="off" aria-label="本を探す">
+      <div class="sort-row">
+        <label>並び
+          <select id="sort-key">
+            <option value="lastRead">最終読書日</option>
+            <option value="title">タイトル</option>
+          </select>
+        </label>
+        <div class="seg" role="group" aria-label="並びの向き">
+          <button data-dir="asc">昇順</button><button data-dir="desc">降順</button>
+        </div>
+      </div>
+    </div>
+    <ul id="books"></ul>
+    <div id="empty" class="empty" hidden></div>
+  </div>
+  <input type="file" id="file" multiple hidden>
+</div>
+
+<!-- リーダー -->
+<div id="reader" hidden>
+  <header class="bar reader-bar">
+    <button class="icon-btn" id="back" aria-label="本棚に戻る">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="r-titles"><div id="r-book" class="r-book"></div><div id="r-chapter" class="r-chapter"></div></div>
+    <button class="btn" id="open-toc">目次</button>
+    <button class="icon-btn" id="open-settings2" aria-label="設定">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
+  </header>
+  <article id="text"></article>
+
+  <footer class="player">
+    <div class="p-inner">
+      <div class="p-status"><span id="p-pos"></span><span id="p-sleep"></span></div>
+      <div class="p-ctrl">
+        <button class="ctl" id="prev-ch" aria-label="前の章">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14M18 6l-7 6 7 6"/></svg>前の章
+        </button>
+        <button class="ctl" id="prev-s" aria-label="前の文">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"/></svg>前の文
+        </button>
+        <button class="play" id="play" aria-label="再生">
+          <svg id="ic-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+          <svg id="ic-pause" viewBox="0 0 24 24" hidden><rect x="6.5" y="5.5" width="4" height="13" rx="1" fill="currentColor"/><rect x="13.5" y="5.5" width="4" height="13" rx="1" fill="currentColor"/></svg>
+        </button>
+        <button class="ctl" id="next-s" aria-label="次の文">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l6 6-6 6"/></svg>次の文
+        </button>
+        <button class="ctl" id="next-ch" aria-label="次の章">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5v14M6 6l7 6-7 6"/></svg>次の章
+        </button>
+      </div>
+      <div class="p-opts">
+        <label>速さ <select id="rate"></select></label>
+        <label>スリープ
+          <select id="sleep">
+            <option value="off">なし</option>
+            <option value="30">30分</option>
+            <option value="60">60分</option>
+            <option value="120">120分</option>
+            <option value="chapter">章の終わり</option>
+          </select>
+        </label>
+        <button class="btn" id="locate">現在地へ</button>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- 目次 -->
+<dialog id="dlg-toc">
+  <div class="d-head"><h2>目次</h2><button class="btn" data-close>閉じる</button></div>
+  <div class="d-body"><ul class="toc" id="toc"></ul></div>
+</dialog>
+
+<!-- 本の編集 -->
+<dialog id="dlg-book">
+  <div class="d-head"><h2>本の編集</h2><button class="btn" data-close>閉じる</button></div>
+  <div class="d-body">
+    <div class="field"><label class="label" for="e-title">タイトル</label><input type="text" id="e-title" style="width:100%"></div>
+    <div class="field"><label class="label" for="e-author">著者</label><input type="text" id="e-author" style="width:100%"></div>
+    <div class="d-actions">
+      <button class="btn primary" id="e-save">保存</button>
+      <button class="btn" id="e-reset">最初から読み直す</button>
+      <button class="btn danger" id="e-delete">本棚から削除</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 設定 -->
+<dialog id="dlg-settings">
+  <div class="d-head"><h2>設定</h2><button class="btn" data-close>閉じる</button></div>
+  <div class="d-body">
+    <div class="field">
+      <label class="label" for="voice">声</label>
+      <div class="row"><select id="voice"></select><button class="btn" id="test-voice">試しに聞く</button></div>
+      <p class="note">高音質の声は「設定」→「アクセシビリティ」→「読み上げコンテンツ」→「声」→「日本語」でダウンロードできます。ダウンロード後はアプリを開き直すと選べます。</p>
+    </div>
+    <div class="field">
+      <span class="label">文字の大きさ</span>
+      <div class="stepper">
+        <button class="btn" id="fs-down" aria-label="小さく">小さく</button>
+        <output id="fs-val"></output>
+        <button class="btn" id="fs-up" aria-label="大きく">大きく</button>
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">表示</span>
+      <div class="seg" role="group" id="theme-seg">
+        <button data-theme="auto">端末に合わせる</button><button data-theme="light">明るい</button><button data-theme="dark">暗い</button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="check"><input type="checkbox" id="auto-next">章の終わりで次の章へ自動で進む</label>
+    </div>
+    <div class="field">
+      <span class="label">読み替え辞書</span>
+      <ul class="dict-list" id="dict-list"></ul>
+      <div class="dict-add">
+        <input type="text" id="d-from" placeholder="表記（例：頸椎）" aria-label="表記">
+        <input type="text" id="d-to" placeholder="読み（例：けいつい）" aria-label="読み">
+        <button class="btn" id="d-add">追加</button>
+      </div>
+      <p class="note">登録した表記は、すべての本で読みに置き換えて読み上げます。本文の中では「|頸椎《けいつい》」と書く方法（ルビ）も使えます。</p>
+    </div>
+    <div class="field">
+      <span class="label">パスコード</span>
+      <p class="note" id="pc-state" style="margin:0 0 8px"></p>
+      <div class="row" id="pc-actions"></div>
+    </div>
+    <div class="field">
+      <span class="label">データの控え</span>
+      <div class="row"><button class="btn" id="export">書き出す</button><button class="btn" id="import">読み込む</button></div>
+      <p class="note">読み替え辞書・設定・各本の読んでいた位置を1つのファイルにまとめます。本文は含みません（iCloud Driveのファイルから読み込み直せます）。</p>
+      <input type="file" id="backup-file" hidden>
+    </div>
+    <div class="field">
+      <span class="label">画面の自動ロック</span>
+      <p class="note" id="wake-note"></p>
+    </div>
+    <p class="note" id="ver"></p>
+  </div>
+</dialog>
+
+<!-- パスコード入力 -->
+<dialog id="lock" aria-label="パスコード">
+  <div class="lk">
+    <h2 id="lk-title">パスコードを入力</h2>
+    <p class="lk-sub" id="lk-sub"></p>
+    <div class="dots" id="lk-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <p class="lk-msg" id="lk-msg" role="alert"></p>
+    <div class="keys" id="lk-keys">
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+      <span></span><button data-k="0">0</button><button data-k="del" class="del" aria-label="1文字消す">削除</button>
+    </div>
+    <button class="lk-link" id="lk-forgot">パスコードを忘れたとき</button>
+    <button class="lk-link" id="lk-cancel">やめる</button>
+  </div>
+</dialog>
+<div id="cover" hidden></div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+'use strict';
+const VERSION = 'v1.1';
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s || '').normalize('NFKC').toLowerCase();
+const HAS_TTS = 'speechSynthesis' in window;
+
+/* ---------- 設定 ---------- */
+const DEF = { voiceURI:'', rate:1.0, fontSize:18, theme:'auto', sortKey:'lastRead', sortDir:'desc', autoNext:true, dict:[] };
+let settings = { ...DEF };
+try { Object.assign(settings, JSON.parse(localStorage.getItem('yomiage-settings') || '{}')); } catch (e) {}
+function saveSettings() { try { localStorage.setItem('yomiage-settings', JSON.stringify(settings)); } catch (e) {} }
+let dictSorted = [];
+function refreshDict() { dictSorted = (settings.dict || []).filter(d => d.from).slice().sort((a, b) => b.from.length - a.from.length); }
+refreshDict();
+
+function applyTheme() {
+  if (settings.theme === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.dataset.theme = settings.theme;
+}
+function applyFont() { document.documentElement.style.setProperty('--fs', settings.fontSize + 'px'); }
+applyTheme(); applyFont();
+
+/* ---------- 保存（IndexedDB） ---------- */
+let dbp = null;
+function openDB() {
+  if (!dbp) dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('yomiage', 1);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains('books')) d.createObjectStore('books', { keyPath:'id' });
+      if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath:'id' });
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return dbp;
+}
+async function idb(store, mode, fn) {
+  const d = await openDB();
+  return new Promise((res, rej) => {
+    const t = d.transaction(store, mode);
+    const req = fn(t.objectStore(store));
+    t.oncomplete = () => res(req ? req.result : undefined);
+    t.onerror = () => rej(t.error);
+    t.onabort = () => rej(t.error);
+  });
+}
+const dbGetAll = s => idb(s, 'readonly', st => st.getAll());
+const dbGet = (s, id) => idb(s, 'readonly', st => st.get(id));
+const dbPut = (s, v) => idb(s, 'readwrite', st => st.put(v));
+const dbDel = (s, id) => idb(s, 'readwrite', st => st.delete(id));
+const dbClear = s => idb(s, 'readwrite', st => st.clear());
+
+/* ---------- 本文ファイルの読み取り ---------- */
+async function readText(f) {
+  const buf = await f.arrayBuffer();
+  try { return new TextDecoder('utf-8', { fatal:true }).decode(buf); }
+  catch (e) {
+    try { return new TextDecoder('shift_jis').decode(buf); }
+    catch (e2) { return new TextDecoder().decode(buf); }
+  }
+}
+function parseBook(raw, fileName) {
+  raw = raw.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const lines = raw.split('\n');
+  const meta = {};
+  const kv = line => {
+    const m = line.match(/^\s*([^:：]+?)\s*[:：]\s*(.*)$/);
+    if (!m) return;
+    const k = m[1].toLowerCase(), v = m[2].trim().replace(/^["']|["']$/g, '');
+    if (k === 'title' || k === 'タイトル' || k === '書名') meta.title = v;
+    if (k === 'author' || k === '著者') meta.author = v;
+  };
+  let i = 0;
+  if (lines[0] && lines[0].trim() === '---') {
+    let j = 1;
+    while (j < lines.length && lines[j].trim() !== '---') j++;
+    if (j < lines.length) { for (let k = 1; k < j; k++) kv(lines[k]); i = j + 1; }
+  } else {
+    let j = 0, ok = true;
+    while (j < lines.length && lines[j].trim() !== '---') {
+      if (lines[j].trim() && !/^\s*(title|author|タイトル|書名|著者)\s*[:：]/i.test(lines[j])) { ok = false; break; }
+      j++;
+    }
+    if (ok && j > 0 && j < lines.length) { for (let k = 0; k < j; k++) kv(lines[k]); i = j + 1; }
+  }
+  const chapters = [];
+  let cur = null, fence = false;
+  for (; i < lines.length; i++) {
+    const L = lines[i];
+    if (/^\s*(```|~~~)/.test(L)) fence = !fence;
+    const m = !fence && L.match(/^#\s+(.+)$/);
+    if (m) { cur = { title: m[1].trim(), lines: [] }; chapters.push(cur); continue; }
+    if (!cur) { if (!L.trim()) continue; cur = { title: 'はじめに', lines: [] }; chapters.push(cur); }
+    cur.lines.push(L);
+  }
+  const chs = chapters.map(c => ({ title: c.title, text: c.lines.join('\n').trim() })).filter(c => c.text || c.title !== 'はじめに');
+  if (!chs.length) throw new Error('本文が見つかりません');
+  const title = (meta.title || fileName.replace(/\.(txt|md|markdown|text)$/i, '').replace(/^本文_/, '')).trim() || '無題';
+  return { title, author: meta.author || '', chapters: chs };
+}
+
+/* ---------- 文の区切り・ルビ・読み替え ---------- */
+const RUBY = /[|｜]([^|｜《》\n]+?)《([^《》\n]+?)》|([\u3400-\u4DBF\u4E00-\u9FFF\u3005\u3006\u30F6]+)《([^《》\n]+?)》/g;
+function cleanInline(t) {
+  return t.replace(/［＃[^］]*］/g, '')
+    .replace(/!\[\[[^\]]*\]\]/g, '')
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (m, a, b) => b || a)
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\*\*|__|==/g, '')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/<[^>]+>/g, '');
+}
+function splitLong(s) {
+  if (s.length <= 120) return [s];
+  const parts = []; let b = '';
+  for (const c of s) { b += c; if ((c === '、' || c === '，' || c === ',') && b.length >= 60) { parts.push(b); b = ''; } }
+  if (b) parts.push(b);
+  return parts;
+}
+function splitSentences(t) {
+  const out = []; const ch = [...t]; let buf = '', inRuby = false;
+  for (let i = 0; i < ch.length; i++) {
+    const c = ch[i]; buf += c;
+    if (c === '《') inRuby = true;
+    if (c === '》') inRuby = false;
+    if (!inRuby && '。！？!?'.includes(c)) {
+      while (i + 1 < ch.length && '。！？!?」』）)"”’'.includes(ch[i + 1])) buf += ch[++i];
+      out.push(buf); buf = '';
+    }
+  }
+  if (buf.trim()) out.push(buf);
+  return out.flatMap(splitLong);
+}
+function segHtml(raw) {
+  let out = '', last = 0;
+  raw.replace(RUBY, (m, b1, r1, b2, r2, off) => {
+    out += esc(raw.slice(last, off)) + '<ruby>' + esc(b1 || b2) + '<rt>' + esc(r1 || r2) + '</rt></ruby>';
+    last = off + m.length; return m;
+  });
+  return out + esc(raw.slice(last));
+}
+function segSpeech(raw) {
+  let s = raw.replace(RUBY, (m, b1, r1, b2, r2) => r1 || r2);
+  for (const d of dictSorted) s = s.split(d.from).join(d.to);
+  return s;
+}
+function segmentChapter(ch) {
+  const segs = [], blocks = [];
+  const add = t => { segs.push(t); return segs.length - 1; };
+  blocks.push({ type:'title', ids:[add(cleanInline(ch.title))] });
+  let fence = false;
+  for (const line of ch.text.split('\n')) {
+    let t = line.trim();
+    if (/^(```|~~~)/.test(t)) { fence = !fence; continue; }
+    if (fence || !t) continue;
+    if (/^([-*_]\s*){3,}$/.test(t)) continue;
+    if (t.includes('-') && /^\|?[\s:|-]+\|[\s:|-]*$/.test(t)) continue;
+    let type = 'p';
+    const hm = t.match(/^#{2,6}\s+(.*)$/);
+    if (hm) { type = 'h'; t = hm[1]; }
+    else t = t.replace(/^>\s?/, '').replace(/^[-*+]\s+(\[[ xX]\]\s*)?/, '・');
+    t = cleanInline(t);
+    if (!t.trim()) continue;
+    const parts = type === 'h' ? [t] : splitSentences(t);
+    blocks.push({ type, ids: parts.map(add) });
+  }
+  return { segs, blocks };
+}
+
+/* ---------- 画面の切り替え・お知らせ ---------- */
+let toastT = null;
+function toast(msg) {
+  const el = $('#toast'); el.textContent = msg; el.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2600);
+}
+function showView(name) {
+  $('#shelf').hidden = name !== 'shelf';
+  $('#reader').hidden = name !== 'reader';
+  document.body.className = name + '-view';
+  window.scrollTo(0, 0);
+}
+const pad = n => String(n).padStart(2, '0');
+const fmtDate = ts => { const d = new Date(ts); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`; };
+const makeId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+/* ---------- 本棚 ---------- */
+let metas = [];
+async function loadShelf() {
+  try { metas = await dbGetAll('meta'); }
+  catch (e) { metas = []; toast('保存領域を開けませんでした'); }
+  renderShelf();
+}
+function renderShelf() {
+  $('#sort-key').value = settings.sortKey;
+  document.querySelectorAll('.sort-row [data-dir]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dir === settings.sortDir)));
+  const q = norm($('#q').value.trim());
+  const dir = settings.sortDir === 'asc' ? 1 : -1;
+  const list = metas.filter(m => !q || norm(m.title + ' ' + (m.author || '')).includes(q));
+  list.sort((a, b) => settings.sortKey === 'title'
+    ? a.title.localeCompare(b.title, 'ja') * dir
+    : ((a.lastReadAt || 0) - (b.lastReadAt || 0)) * dir || a.title.localeCompare(b.title, 'ja'));
+  $('#books').innerHTML = list.map(m => {
+    const n = m.chapterCount || 1;
+    const prog = m.finished ? '<span class="done">読了</span>'
+      : m.lastReadAt ? `<span>${(m.pos ? m.pos.ch : 0) + 1}／${n}章</span>` : `<span>全${n}章</span>`;
+    const when = m.lastReadAt ? `<span>最終 ${fmtDate(m.lastReadAt)}</span>` : '<span>未読</span>';
+    return `<li><button class="book" data-open="${esc(m.id)}">
+      <span class="b-title">${esc(m.title)}</span>
+      ${m.author ? `<span class="b-author">${esc(m.author)}</span>` : ''}
+      <span class="b-meta">${prog}${when}</span></button>
+      <button class="icon-btn" data-edit="${esc(m.id)}" aria-label="「${esc(m.title)}」を編集">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+      </button></li>`;
+  }).join('');
+  const empty = $('#empty');
+  if (!metas.length) {
+    empty.innerHTML = '<strong>まだ本がありません。</strong><br>「本を追加」から、ファイルアプリのiCloud Driveにある本文ファイル（.txt・.md）を選んでください。Obsidianの 03_Personal › 05_音声読み上げアプリ › 01_本文 に置いたファイルも選べます。';
+    empty.hidden = false;
+  } else if (!list.length) {
+    empty.textContent = `「${$('#q').value.trim()}」に合う本はありません。`;
+    empty.hidden = false;
+  } else empty.hidden = true;
+}
+$('#q').addEventListener('input', renderShelf);
+$('#sort-key').addEventListener('change', e => { settings.sortKey = e.target.value; saveSettings(); renderShelf(); });
+document.querySelectorAll('.sort-row [data-dir]').forEach(b => b.addEventListener('click', () => { settings.sortDir = b.dataset.dir; saveSettings(); renderShelf(); }));
+$('#books').addEventListener('click', e => {
+  const o = e.target.closest('[data-open]'); if (o) { openBook(o.dataset.open); return; }
+  const ed = e.target.closest('[data-edit]'); if (ed) openEdit(ed.dataset.edit);
+});
+
+$('#add').addEventListener('click', () => $('#file').click());
+$('#file').addEventListener('change', async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length) return;
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  let added = 0, skipped = [];
+  for (const f of files) {
+    if (!/\.(txt|md|markdown|text)$/i.test(f.name) && !/^text\//.test(f.type)) { skipped.push(f.name); continue; }
+    try {
+      const p = parseBook(await readText(f), f.name);
+      const ex = metas.find(m => m.title === p.title);
+      let m;
+      if (ex) {
+        if (!confirm(`「${p.title}」はすでに本棚にあります。新しいファイルで置き換えますか？（読んでいた位置は残します）`)) continue;
+        m = { ...ex, author: p.author || ex.author, chapterCount: p.chapters.length };
+        if (!m.pos || m.pos.ch >= p.chapters.length) m.pos = { ch: 0, s: 0 };
+        m.done = (m.done || []).filter(i => i < p.chapters.length);
+        m.finished = false;
+      } else {
+        m = { id: makeId(), title: p.title, author: p.author, chapterCount: p.chapters.length, addedAt: Date.now(), lastReadAt: 0, pos: { ch: 0, s: 0 }, done: [], finished: false };
+      }
+      await dbPut('books', { id: m.id, chapters: p.chapters });
+      await dbPut('meta', m);
+      added++;
+    } catch (err) { skipped.push(f.name); }
+  }
+  await loadShelf();
+  if (added) toast(`${added}冊を本棚に入れました`);
+  if (skipped.length) setTimeout(() => toast(`読み込めなかったファイル：${skipped.join('、')}`), added ? 2700 : 0);
+});
+
+/* 本の編集 */
+let editId = null;
+function openEdit(id) {
+  const m = metas.find(x => x.id === id); if (!m) return;
+  editId = id; $('#e-title').value = m.title; $('#e-author').value = m.author || '';
+  $('#dlg-book').showModal();
+}
+$('#e-save').addEventListener('click', async () => {
+  const m = metas.find(x => x.id === editId); if (!m) return;
+  m.title = $('#e-title').value.trim() || m.title; m.author = $('#e-author').value.trim();
+  await dbPut('meta', m); $('#dlg-book').close(); renderShelf(); toast('保存しました');
+});
+$('#e-reset').addEventListener('click', async () => {
+  const m = metas.find(x => x.id === editId); if (!m) return;
+  m.pos = { ch: 0, s: 0 }; m.done = []; m.finished = false;
+  await dbPut('meta', m); $('#dlg-book').close(); renderShelf(); toast('最初から読めるようにしました');
+});
+$('#e-delete').addEventListener('click', async () => {
+  const m = metas.find(x => x.id === editId); if (!m) return;
+  if (!confirm(`「${m.title}」を本棚から削除しますか？（iCloud Driveのファイルは消えません）`)) return;
+  await dbDel('books', m.id); await dbDel('meta', m.id);
+  $('#dlg-book').close(); await loadShelf(); toast('削除しました');
+});
+
+/* ---------- リーダー ---------- */
+let book = null, meta = null, chIdx = 0, segs = [], blocks = [], spans = [];
+const P = { playing:false, token:0, idx:0, utter:null, spokeAt:0, interrupted:false };
+let userScrollAt = 0;
+
+async function openBook(id) {
+  let b, m;
+  try { [b, m] = await Promise.all([dbGet('books', id), dbGet('meta', id)]); } catch (e) {}
+  if (!b || !m) { toast('本のデータが見つかりません'); return; }
+  book = b; meta = m; meta.lastReadAt = Date.now(); saveMeta();
+  showView('reader');
+  $('#r-book').textContent = meta.title;
+  const p = meta.pos || { ch: 0, s: 0 };
+  loadChapter(Math.min(p.ch, book.chapters.length - 1), p.s || 0);
+}
+function loadChapter(n, s = 0) {
+  chIdx = n;
+  const r = segmentChapter(book.chapters[n]); segs = r.segs; blocks = r.blocks;
+  const last = book.chapters.length - 1;
+  const html = blocks.map(b => {
+    const inner = b.ids.map(i => `<span class="s" data-i="${i}">${segHtml(segs[i])}</span>`).join('');
+    if (b.type === 'title') return `<h2 class="ch-title">${inner}</h2>`;
+    if (b.type === 'h') return `<h3>${inner}</h3>`;
+    return `<p>${inner}</p>`;
+  }).join('');
+  const nav = `<nav class="ch-end">${n > 0 ? '<button class="btn" data-go="prev">前の章</button>' : ''}${n < last ? '<button class="btn primary" data-go="next">次の章へ</button>' : '<p class="fin">この本の最後です</p>'}</nav>`;
+  $('#text').innerHTML = html + nav;
+  spans = [...document.querySelectorAll('#text .s')];
+  $('#r-chapter').textContent = book.chapters[n].title;
+  P.idx = 0;
+  setCur(Math.min(s, segs.length - 1), { scroll: 'jump' });
+}
+function setCur(i, opt = {}) {
+  if (!segs.length) return;
+  i = Math.max(0, Math.min(i, segs.length - 1));
+  const old = spans[P.idx];
+  if (old) { old.classList.remove('cur'); old.parentElement.classList.remove('here'); }
+  P.idx = i;
+  const el = spans[i];
+  if (el) { el.classList.add('cur'); el.parentElement.classList.add('here'); }
+  updateStatus(); savePos();
+  if (opt.scroll === 'jump') scrollToCur('auto');
+  else if (opt.scroll === 'follow') follow();
+}
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function scrollToCur(behavior) {
+  if (P.idx === 0) { window.scrollTo({ top: 0, behavior }); return; }
+  const el = spans[P.idx]; if (!el) return;
+  const top = window.scrollY + el.getBoundingClientRect().top - window.innerHeight * 0.3;
+  window.scrollTo({ top: Math.max(0, top), behavior });
+}
+function follow() {
+  if (Date.now() - userScrollAt < 5000) return;
+  const el = spans[P.idx]; if (!el) return;
+  const r = el.getBoundingClientRect(), vh = window.innerHeight;
+  if (r.top < vh * 0.15 || r.bottom > vh - 200) scrollToCur(reduced ? 'auto' : 'smooth');
+}
+['touchmove', 'wheel'].forEach(ev => window.addEventListener(ev, () => { userScrollAt = Date.now(); }, { passive: true }));
+
+function updateStatus() {
+  if (!book) return;
+  const pct = segs.length > 1 ? Math.round(P.idx / (segs.length - 1) * 100) : 0;
+  $('#p-pos').textContent = `${chIdx + 1}／${book.chapters.length}章　${pct}%`;
+}
+let saveT = null;
+function savePos() {
+  if (!meta) return;
+  meta.pos = { ch: chIdx, s: P.idx }; meta.lastReadAt = Date.now();
+  clearTimeout(saveT); saveT = setTimeout(saveMeta, 1200);
+}
+function saveMeta() {
+  clearTimeout(saveT); saveT = null;
+  if (!meta) return;
+  dbPut('meta', meta).catch(() => {});
+  const i = metas.findIndex(x => x.id === meta.id); if (i >= 0) metas[i] = meta;
+}
+function markDone(n) {
+  const d = new Set(meta.done || []); d.add(n); meta.done = [...d];
+  if (n === book.chapters.length - 1) meta.finished = true;
+}
+
+$('#text').addEventListener('click', e => {
+  const go = e.target.closest('[data-go]');
+  if (go) { gotoChapter(chIdx + (go.dataset.go === 'next' ? 1 : -1)); return; }
+  if (String(window.getSelection() || '')) return;
+  const s = e.target.closest('.s'); if (!s) return;
+  jump(+s.dataset.i);
+});
+function jump(i) {
+  if (i < 0 || i >= segs.length) return;
+  if (P.playing) speakIdx(i);
+  else { setCur(i); userScrollAt = 0; follow(); }
+}
+function gotoChapter(n) {
+  if (!book || n < 0 || n >= book.chapters.length) return;
+  const was = P.playing;
+  if (was) { P.token++; P.utter = null; speechSynthesis.cancel(); }
+  loadChapter(n, 0);
+  if (was) speakIdx(0);
+}
+
+/* ---------- 読み上げ ---------- */
+let voices = [];
+const vScore = v => /premium|プレミアム/i.test(v.name) ? 2 : /enhanced|拡張|高品質/i.test(v.name) ? 1 : 0;
+function loadVoices() {
+  if (!HAS_TTS) return;
+  voices = speechSynthesis.getVoices().filter(v => /^ja([-_]|$)/i.test(v.lang));
+  voices.sort((a, b) => vScore(b) - vScore(a) || a.name.localeCompare(b.name, 'ja'));
+  fillVoices();
+}
+function currentVoice() { return voices.find(v => v.voiceURI === settings.voiceURI) || voices[0] || null; }
+function fillVoices() {
+  const sel = $('#voice');
+  if (!voices.length) { sel.innerHTML = '<option>日本語の声が見つかりません</option>'; sel.disabled = true; return; }
+  sel.disabled = false;
+  const cur = currentVoice();
+  sel.innerHTML = voices.map(v => `<option value="${esc(v.voiceURI)}"${cur && v.voiceURI === cur.voiceURI ? ' selected' : ''}>${esc(v.name)}</option>`).join('');
+}
+if (HAS_TTS) {
+  loadVoices();
+  if (speechSynthesis.addEventListener) speechSynthesis.addEventListener('voiceschanged', loadVoices);
+  else speechSynthesis.onvoiceschanged = loadVoices;
+  setTimeout(loadVoices, 600); setTimeout(loadVoices, 2000);
+}
+
+function speakIdx(i) {
+  const my = ++P.token;
+  P.utter = null;
+  setCur(i, { scroll: 'follow' });
+  const text = segSpeech(segs[P.idx]);
+  if (!/[\p{L}\p{N}]/u.test(text)) { setTimeout(() => { if (my === P.token && P.playing) advance(); }, 150); return; }
+  const go = () => {
+    if (my !== P.token || !P.playing) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    const v = currentVoice(); if (v) u.voice = v;
+    u.rate = settings.rate;
+    u.onend = () => { if (my === P.token && P.playing) advance(); };
+    u.onerror = e => {
+      if (my !== P.token || !P.playing) return;
+      if (e.error === 'interrupted' || e.error === 'canceled') return;
+      advance();
+    };
+    P.utter = u; P.spokeAt = Date.now();
+    speechSynthesis.speak(u);
+  };
+  if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); setTimeout(go, 80); }
+  else go();
+}
+function advance() {
+  const next = P.idx + 1;
+  if (next < segs.length) {
+    if (sleepExpired()) { setCur(next); endBySleep(); return; }
+    speakIdx(next); return;
+  }
+  markDone(chIdx);
+  if (chIdx + 1 >= book.chapters.length) { stopPlay(); toast('最後まで読みました'); return; }
+  if (sleep.mode === 'chapter' || sleepExpired()) { loadChapter(chIdx + 1, 0); endBySleep(); return; }
+  if (!settings.autoNext) { loadChapter(chIdx + 1, 0); stopPlay(); toast('次の章の最初で止めました'); return; }
+  loadChapter(chIdx + 1, 0);
+  speakIdx(0);
+}
+function play() {
+  if (!HAS_TTS) { toast('この端末では読み上げが使えません'); return; }
+  if (!book) return;
+  P.playing = true; P.interrupted = false; updatePlayBtn(); wakeOn();
+  userScrollAt = 0;
+  speakIdx(P.idx);
+}
+function stopPlay() {
+  P.playing = false; P.token++; P.utter = null;
+  if (HAS_TTS) { try { speechSynthesis.cancel(); } catch (e) {} }
+  wakeOff(); updatePlayBtn(); saveMeta();
+}
+function updatePlayBtn() {
+  $('#ic-play').hidden = P.playing; $('#ic-pause').hidden = !P.playing;
+  $('#play').setAttribute('aria-label', P.playing ? '一時停止' : '再生');
+}
+$('#play').addEventListener('click', () => P.playing ? stopPlay() : play());
+$('#prev-s').addEventListener('click', () => jump(P.idx - 1));
+$('#next-s').addEventListener('click', () => jump(P.idx + 1));
+$('#prev-ch').addEventListener('click', () => gotoChapter(chIdx - 1));
+$('#next-ch').addEventListener('click', () => gotoChapter(chIdx + 1));
+$('#locate').addEventListener('click', () => { userScrollAt = 0; scrollToCur(reduced ? 'auto' : 'smooth'); });
+
+/* 速さ */
+const RATES = [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6];
+$('#rate').innerHTML = RATES.map(r => `<option value="${r}">${r.toFixed(1)}倍</option>`).join('');
+$('#rate').value = String(RATES.includes(settings.rate) ? settings.rate : 1);
+$('#rate').addEventListener('change', e => {
+  settings.rate = +e.target.value; saveSettings();
+  if (P.playing) speakIdx(P.idx);
+});
+
+/* 見張り（読み上げが止まったまま進まないとき） */
+setInterval(() => {
+  updateSleepLabel();
+  if (HAS_TTS && P.playing && P.utter && Date.now() - P.spokeAt > 3000 && !speechSynthesis.speaking && !speechSynthesis.pending) {
+    P.utter = null; advance();
+  }
+}, 1000);
+
+/* ---------- スリープ ---------- */
+const sleep = { mode:'off', end:0 };
+function setSleep(mode) {
+  sleep.mode = mode;
+  sleep.end = /^\d+$/.test(mode) ? Date.now() + (+mode) * 60000 : 0;
+  $('#sleep').value = mode; updateSleepLabel();
+}
+function sleepExpired() { return sleep.end > 0 && Date.now() >= sleep.end; }
+function endBySleep() { stopPlay(); setSleep('off'); toast('スリープ：停止しました'); }
+function updateSleepLabel() {
+  const el = $('#p-sleep');
+  if (sleep.mode === 'chapter') { el.textContent = 'スリープ 章の終わりまで'; return; }
+  if (!sleep.end) { el.textContent = ''; return; }
+  const left = Math.max(0, sleep.end - Date.now());
+  const m = Math.floor(left / 60000), s = Math.floor(left % 60000 / 1000);
+  el.textContent = `スリープ 残り${m}:${pad(s)}`;
+  if (left === 0 && !P.playing) setSleep('off');
+}
+$('#sleep').addEventListener('change', e => setSleep(e.target.value));
+
+/* ---------- 画面を消さない ---------- */
+let wl = null;
+async function wakeOn() {
+  try {
+    if ('wakeLock' in navigator && !wl) {
+      wl = await navigator.wakeLock.request('screen');
+      wl.addEventListener('release', () => { wl = null; });
+    }
+  } catch (e) {}
+}
+function wakeOff() { if (wl) { wl.release().catch(() => {}); wl = null; } }
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    if (P.playing) { stopPlay(); P.interrupted = true; }
+    saveMeta();
+    hiddenAt = Date.now();
+    if (pcOn() && !locked) $('#cover').hidden = false;
+  } else {
+    if (pcOn() && !locked && Date.now() - hiddenAt >= LOCK_AFTER) lockApp();
+    $('#cover').hidden = true;
+    if (P.interrupted) { P.interrupted = false; if (!locked) toast('画面を離れたので一時停止しました'); }
+  }
+});
+window.addEventListener('pagehide', () => { if (saveT) saveMeta(); });
+
+$('#back').addEventListener('click', () => {
+  stopPlay(); book = null; meta = null; segs = []; spans = [];
+  showView('shelf'); loadShelf();
+});
+
+/* ---------- 目次 ---------- */
+$('#open-toc').addEventListener('click', () => {
+  const done = new Set(meta.done || []);
+  $('#toc').innerHTML = book.chapters.map((c, i) =>
+    `<li><button data-ch="${i}" class="${i === chIdx ? 'now' : ''}"><span>${esc(c.title)}</span><span class="state">${i === chIdx ? 'いまここ' : done.has(i) ? '聞いた' : ''}</span></button></li>`).join('');
+  $('#dlg-toc').showModal();
+  const now = $('#toc .now'); if (now) now.scrollIntoView({ block: 'center' });
+});
+$('#toc').addEventListener('click', e => {
+  const b = e.target.closest('[data-ch]'); if (!b) return;
+  $('#dlg-toc').close(); gotoChapter(+b.dataset.ch);
+});
+
+/* ---------- 設定 ---------- */
+function openSettings() {
+  loadVoices();
+  $('#fs-val').textContent = settings.fontSize + 'px';
+  document.querySelectorAll('#theme-seg [data-theme]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === settings.theme)));
+  $('#auto-next').checked = settings.autoNext;
+  renderDict();
+  $('#wake-note').textContent = 'wakeLock' in navigator
+    ? '再生中は画面が自動で消えないようにしています。画面をロックしたり別のアプリに切り替えたりすると、読み上げは止まります。'
+    : 'この端末では「画面を消さない」機能が使えません。読み上げ中に止まる場合は、「設定」→「画面表示と明るさ」→「自動ロック」を長めにしてください。';
+  renderPc();
+  $('#ver').textContent = `読み上げ ${VERSION}`;
+  $('#dlg-settings').showModal();
+}
+$('#open-settings').addEventListener('click', openSettings);
+$('#open-settings2').addEventListener('click', openSettings);
+$('#voice').addEventListener('change', e => { settings.voiceURI = e.target.value; saveSettings(); if (P.playing) speakIdx(P.idx); });
+$('#test-voice').addEventListener('click', () => {
+  if (!HAS_TTS) { toast('この端末では読み上げが使えません'); return; }
+  if (P.playing) stopPlay();
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance('これは読み上げの試しです。声と速さを確かめてください。');
+  u.lang = 'ja-JP'; const v = currentVoice(); if (v) u.voice = v; u.rate = settings.rate;
+  speechSynthesis.speak(u);
+});
+function setFont(d) {
+  settings.fontSize = Math.max(14, Math.min(30, settings.fontSize + d));
+  saveSettings(); applyFont(); $('#fs-val').textContent = settings.fontSize + 'px';
+}
+$('#fs-down').addEventListener('click', () => setFont(-1));
+$('#fs-up').addEventListener('click', () => setFont(1));
+document.querySelectorAll('#theme-seg [data-theme]').forEach(b => b.addEventListener('click', () => {
+  settings.theme = b.dataset.theme; saveSettings(); applyTheme();
+  document.querySelectorAll('#theme-seg [data-theme]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+}));
+$('#auto-next').addEventListener('change', e => { settings.autoNext = e.target.checked; saveSettings(); });
+
+function renderDict() {
+  const list = settings.dict || [];
+  $('#dict-list').innerHTML = list.length
+    ? list.map((d, i) => `<li><span class="from">${esc(d.from)}</span><span class="to">${esc(d.to)}</span><button data-say="${i}">聞く</button><button data-del="${i}">削除</button></li>`).join('')
+    : '<li><span class="from" style="color:var(--sub)">まだ登録がありません</span></li>';
+}
+$('#d-add').addEventListener('click', () => {
+  const from = $('#d-from').value.trim(), to = $('#d-to').value.trim();
+  if (!from || !to) { toast('表記と読みの両方を入れてください'); return; }
+  settings.dict = (settings.dict || []).filter(d => d.from !== from);
+  settings.dict.push({ from, to });
+  saveSettings(); refreshDict(); renderDict();
+  $('#d-from').value = ''; $('#d-to').value = '';
+});
+$('#dict-list').addEventListener('click', e => {
+  const del = e.target.closest('[data-del]');
+  if (del) { settings.dict.splice(+del.dataset.del, 1); saveSettings(); refreshDict(); renderDict(); return; }
+  const say = e.target.closest('[data-say]');
+  if (say && HAS_TTS) {
+    if (P.playing) stopPlay();
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(settings.dict[+say.dataset.say].to);
+    u.lang = 'ja-JP'; const v = currentVoice(); if (v) u.voice = v; u.rate = settings.rate;
+    speechSynthesis.speak(u);
+  }
+});
+
+/* 控えの書き出し・読み込み */
+function ymd() { const d = new Date(); return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`; }
+$('#export').addEventListener('click', async () => {
+  if (meta) saveMeta();
+  const all = await dbGetAll('meta').catch(() => metas);
+  const data = {
+    app: 'yomiage', version: 1, exportedAt: new Date().toISOString(),
+    settings: (({ pcHash, pcSalt, ...rest }) => rest)(settings),
+    positions: all.map(m => ({ title: m.title, author: m.author || '', pos: m.pos || null, lastReadAt: m.lastReadAt || 0, done: m.done || [], finished: !!m.finished }))
+  };
+  const name = `読み上げ_控え_${ymd()}.json`;
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  try {
+    const file = new File([blob], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+});
+$('#import').addEventListener('click', () => $('#backup-file').click());
+$('#backup-file').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const data = JSON.parse(await readText(f));
+    if (data.app !== 'yomiage') throw new Error();
+    const s = data.settings || {};
+    const dict = settings.dict || [];
+    for (const d of (s.dict || [])) if (d.from && !dict.some(x => x.from === d.from)) dict.push({ from: d.from, to: d.to });
+    for (const k of ['voiceURI', 'rate', 'fontSize', 'theme', 'sortKey', 'sortDir', 'autoNext']) if (k in s) settings[k] = s[k];
+    settings.dict = dict; saveSettings(); refreshDict(); applyTheme(); applyFont();
+    $('#rate').value = String(settings.rate);
+    const all = await dbGetAll('meta');
+    let n = 0;
+    for (const p of (data.positions || [])) {
+      const m = all.find(x => x.title === p.title);
+      if (!m || (p.lastReadAt || 0) <= (m.lastReadAt || 0)) continue;
+      m.pos = p.pos && p.pos.ch < (m.chapterCount || 1) ? p.pos : { ch: 0, s: 0 };
+      m.lastReadAt = p.lastReadAt; m.done = (p.done || []).filter(i => i < (m.chapterCount || 1)); m.finished = !!p.finished;
+      await dbPut('meta', m); n++;
+    }
+    await loadShelf(); openSettingsRefresh();
+    toast(`控えを読み込みました（読書位置 ${n}冊分）`);
+  } catch (err) { toast('控えのファイルを読み込めませんでした'); }
+});
+function openSettingsRefresh() {
+  $('#fs-val').textContent = settings.fontSize + 'px';
+  document.querySelectorAll('#theme-seg [data-theme]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === settings.theme)));
+  $('#auto-next').checked = settings.autoNext; renderDict(); fillVoices();
+}
+
+/* ダイアログを閉じる */
+document.querySelectorAll('dialog:not(#lock)').forEach(d => {
+  d.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === d) d.close(); });
+});
+
+/* ---------- パスコード（簡易ロック） ---------- */
+const LOCK_AFTER = 5 * 60 * 1000;   // ほかのアプリから5分以上たって戻ったらロック
+let locked = false, padResolve = null, padBuf = '', padWait = false;
+const pcOn = () => !!settings.pcHash;
+async function hashCode(code, salt) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + code));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function drawDots() { [...document.querySelectorAll('#lk-dots i')].forEach((d, i) => d.classList.toggle('on', i < padBuf.length)); }
+function openPad({ title, sub = '', msg = '', cancel = false }) {
+  $('#lk-title').textContent = title; $('#lk-sub').textContent = sub; $('#lk-msg').textContent = msg;
+  $('#lk-cancel').hidden = !cancel; $('#lk-forgot').hidden = cancel;
+  padBuf = ''; drawDots();
+  const d = $('#lock'); if (!d.open) d.showModal();
+  return new Promise(r => { padResolve = r; });
+}
+function closePad() { padResolve = null; if ($('#lock').open) $('#lock').close(); }
+function padKey(k) {
+  if (!padResolve || padWait) return;
+  if (k === 'del') { padBuf = padBuf.slice(0, -1); drawDots(); return; }
+  if (padBuf.length >= 4) return;
+  padBuf += k; drawDots();
+  if (padBuf.length === 4) {
+    const v = padBuf, r = padResolve; padResolve = null;
+    setTimeout(() => r(v), 150);
+  }
+}
+$('#lk-keys').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (b) padKey(b.dataset.k); });
+document.addEventListener('keydown', e => {
+  if (!$('#lock').open) return;
+  if (/^[0-9]$/.test(e.key)) padKey(e.key);
+  else if (e.key === 'Backspace') padKey('del');
+});
+$('#lock').addEventListener('cancel', e => e.preventDefault());
+$('#lk-cancel').addEventListener('click', () => { const r = padResolve; closePad(); if (r) r(null); });
+$('#lk-forgot').addEventListener('click', async () => {
+  if (!confirm('パスコードを解除します。本棚の本と読んでいた位置も消えます（iCloud Driveのファイルは消えません）。よろしいですか？')) return;
+  try { await dbClear('books'); await dbClear('meta'); } catch (e) {}
+  delete settings.pcHash; delete settings.pcSalt; saveSettings();
+  book = null; meta = null; segs = []; spans = []; metas = [];
+  const r = padResolve; padResolve = null; if (r) r('__forgot__');
+});
+async function wait30() {
+  padWait = true;
+  document.querySelectorAll('#lk-keys button').forEach(b => { b.disabled = true; });
+  for (let n = 30; n > 0; n--) { $('#lk-msg').textContent = `続けて間違えたため、${n}秒お待ちください`; await new Promise(r => setTimeout(r, 1000)); }
+  document.querySelectorAll('#lk-keys button').forEach(b => { b.disabled = false; });
+  padWait = false;
+}
+async function lockApp() {
+  if (!pcOn() || locked) return;
+  locked = true;
+  if (P.playing) stopPlay();
+  document.querySelectorAll('dialog[open]:not(#lock)').forEach(d => d.close());
+  let fails = 0, msg = '';
+  while (true) {
+    const v = await openPad({ title: 'パスコードを入力', msg });
+    if (v === '__forgot__') { closePad(); showView('shelf'); renderShelf(); toast('パスコードを解除しました'); break; }
+    if (await hashCode(v, settings.pcSalt) === settings.pcHash) { closePad(); break; }
+    fails++; msg = 'パスコードが違います';
+    if (fails >= 5) { await wait30(); fails = 0; msg = ''; }
+  }
+  locked = false;
+}
+async function verifyCurrent() {
+  let msg = '';
+  for (let i = 0; i < 5; i++) {
+    const v = await openPad({ title: '現在のパスコード', sub: '確認のため入力してください', msg, cancel: true });
+    if (v === null) return false;
+    if (await hashCode(v, settings.pcSalt) === settings.pcHash) return true;
+    msg = 'パスコードが違います';
+  }
+  return false;
+}
+async function askNew(msg = '') {
+  const a = await openPad({ title: '新しいパスコード', sub: '4桁の数字を入力してください', msg, cancel: true });
+  if (a === null) return null;
+  const b = await openPad({ title: 'もう一度入力', sub: '確認のため同じ数字を入力してください', cancel: true });
+  if (b === null) return null;
+  return a === b ? a : '';
+}
+async function setupCode() {
+  let code = await askNew();
+  if (code === '') code = await askNew('2回の数字が違いました。最初からもう一度入力してください');
+  closePad();
+  if (code === null) return;
+  if (code === '') { renderPc('2回の数字が違ったため、設定しませんでした'); return; }
+  settings.pcSalt = makeId();
+  settings.pcHash = await hashCode(code, settings.pcSalt);
+  saveSettings(); renderPc('パスコードを設定しました');
+}
+function renderPc(note) {
+  $('#pc-state').textContent = note || (pcOn()
+    ? 'オン：アプリを開いたときと、ほかのアプリから5分以上たって戻ったときに入力します。'
+    : 'オフ：4桁の数字を設定すると、アプリを開くときに入力が必要になります。');
+  $('#pc-actions').innerHTML = pcOn()
+    ? '<button class="btn" id="pc-change">変更する</button><button class="btn" id="pc-off">オフにする</button>'
+    : '<button class="btn" id="pc-set">設定する</button>';
+}
+$('#pc-actions').addEventListener('click', async e => {
+  const id = e.target.id;
+  if (id === 'pc-set') await setupCode();
+  if (id === 'pc-change') {
+    if (await verifyCurrent()) await setupCode();
+    else { closePad(); renderPc(); }
+  }
+  if (id === 'pc-off') {
+    const ok = await verifyCurrent(); closePad();
+    if (ok) { delete settings.pcHash; delete settings.pcSalt; saveSettings(); renderPc('パスコードをオフにしました'); }
+    else renderPc();
+  }
+});
+
+/* ---------- 起動 ---------- */
+if (pcOn()) lockApp();
+loadShelf();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+</script>
+</body>
+</html>
